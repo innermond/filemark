@@ -28,6 +28,11 @@ func NewMarkReader(f *os.File, a int64, z int64) *MarkReader {
 	return &MarkReader{f, a, z, bufio.NewReader(lr)}
 }
 
+// Size returns size that can be read from this reader, distance between two consecutive marks
+func (pr *MarkReader) Size() int {
+	return int(pr.z - pr.a)
+}
+
 func (pr *MarkReader) Read(p []byte) (n int, err error) {
 	crt, err := pr.f.Seek(0, io.SeekCurrent)
 	if crt >= pr.z {
