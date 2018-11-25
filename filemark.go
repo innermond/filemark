@@ -34,29 +34,46 @@ func (mk *Filemark) Marks(numberOfParts int) []int64 {
 	}
 	// proxy variable
 	f := mk.f
-	psz := mk.PartSize(numberOfParts)
+	partsize, filesize := mk.PartSize(numberOfParts), mk.Size()
 	for {
-		// move pointer
-		_, mk.err = f.Seek(psz, io.SeekCurrent)
-		if mk.Err() != nil {
+		// 1. move pointer
+		_, mk.err = f.Seek(partsize, io.SeekCurrent)
+		if mk.err != nil {
 			break
 		}
-		// find delim
+		// because f.Seek seems to not be able to signal EOF
+		// check for especially for io.EOF by trying ro read
+		bk := make([]byte, 1)
+		_, err := f.Read(bk)
+		if err == io.EOF {
+			mk.err = io.EOF
+			break
+		}
+		// 2. find delim
 		z := mk.findelim()
-		if mk.Err() != nil {
+		// error or be paranoid and watch position to not go beyond file size
+		if mk.Err() != nil || z >= filesize {
 			break
 		}
 		marks = append(marks, z)
 	}
-	marks = append(marks, mk.Size())
+	marks = append(marks, filesize)
 	return marks
 }
 
 func (mk *Filemark) findelim() int64 {
 	f := mk.f
-	m := make([]byte, len(mk.delim))
-	mc := 0
+	ldelim := len(mk.delim)
 	z := zero64
+	m := make([]byte, ldelim)
+	mc := 0
+
+	// TODO: delim empty case
+	if ldelim == 0 {
+		z, mk.err = f.Seek(0, io.SeekCurrent)
+		return z
+	}
+
 	for {
 		mc, mk.err = f.Read(m)
 		if mk.err != nil {
