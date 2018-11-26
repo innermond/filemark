@@ -10,6 +10,7 @@ import (
 
 // Split a file into parts that ends with delimiter
 func Split(fn string, delim string, pieces int) error {
+	var err error
 	// open file
 	f, err := os.Open(fn)
 	if err != nil {
