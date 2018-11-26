@@ -9,13 +9,13 @@ const zero64 = int64(0)
 
 // Filemark provides needed structure
 type Filemark struct {
-	f     io.ReadWriteSeeker
+	f     io.ReadSeeker
 	delim string
 	err   error
 }
 
 // New constructs a Filemark pointer
-func New(f io.ReadWriteSeeker, d string) *Filemark {
+func New(f io.ReadSeeker, d string) *Filemark {
 	mk := &Filemark{f, d, nil}
 	return mk
 }
