@@ -30,12 +30,13 @@ func Split(fn string, delim string, pieces int) error {
 		defer fp.Close()
 
 		// fill part file with mark reader content
-		mr := NewMarkReader(f, a, z)
+		mr := io.NewSectionReader(f, a, z-a)
 		_, err = io.Copy(fp, mr)
 		if err != nil {
 			return err
 		}
 		a = z
+
 	}
 	return nil
 }

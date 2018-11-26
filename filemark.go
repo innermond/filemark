@@ -3,20 +3,19 @@ package filemark
 import (
 	"io"
 	"math"
-	"os"
 )
 
 const zero64 = int64(0)
 
 // Filemark provides needed structure
 type Filemark struct {
-	f     *os.File
+	f     io.ReadWriteSeeker
 	delim string
 	err   error
 }
 
 // New constructs a Filemark pointer
-func New(f *os.File, d string) *Filemark {
+func New(f io.ReadWriteSeeker, d string) *Filemark {
 	mk := &Filemark{f, d, nil}
 	return mk
 }
@@ -68,7 +67,6 @@ func (mk *Filemark) findelim() int64 {
 	m := make([]byte, ldelim)
 	mc := 0
 
-	// TODO: delim empty case
 	if ldelim == 0 {
 		z, mk.err = f.Seek(0, io.SeekCurrent)
 		return z
