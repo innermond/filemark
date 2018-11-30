@@ -93,6 +93,10 @@ func (mk *Filemark) Err() error {
 
 // PartSize calculates single part length of n parts
 func (mk *Filemark) PartSize(n int) int64 {
+	// make number of parts to be natural
+	if n < 1 {
+		n = 1
+	}
 	sz := mk.Size()
 	return int64(math.Ceil(float64(sz) / float64(n)))
 }
