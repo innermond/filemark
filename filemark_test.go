@@ -1,35 +1,16 @@
 package filemark
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
-	"time"
-
-	"github.com/spf13/afero"
 )
 
-var (
-	fs afero.Fs
-)
-
-func init() {
-	fs = afero.NewMemMapFs()
-	err := fs.Mkdir("t", 0777)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func file(s string) (afero.File, error) {
-	fn := strconv.FormatInt(time.Now().UnixNano(), 10)
-	fn = filepath.Join("t", fn)
-	f, err := fs.Create(fn)
-	if err != nil {
-		return nil, err
-	}
-	_, err = f.WriteString(s)
+func file(s string) (*os.File, error) {
+	fn := filepath.Join("test_files", s)
+	f, err := os.Open(fn)
 	if err != nil {
 		return nil, err
 	}
@@ -39,8 +20,8 @@ func file(s string) (afero.File, error) {
 var marksOnEmptyFile = []int{0, 1, 2, 3, 4, 5}
 
 // TestEmptyFile an empty source
-func TestEmptyFile(t *testing.T) {
-	f, err := file("")
+func _TestEmptyFile(t *testing.T) {
+	f, err := file("empty_file")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -69,20 +50,16 @@ func TestEmptyFile(t *testing.T) {
 	})
 }
 
-var cobai = `0
-1
-2
-3
-4
-5
-6
-7
-8
-9`
+var emptySeparatorCases = map[int][]int64{
+	//0: []int64{20},
+	//1: []int64{20},
+	2: []int64{12, 20},
+	3: []int64{8, 16, 20},
+}
 
-// TestCobaiFile a known, predictable file
+// TestEmptySeparator using a known file with empty separator
 func TestEmptySeparator(t *testing.T) {
-	f, err := file(cobai)
+	f, err := file("newline")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -90,15 +67,11 @@ func TestEmptySeparator(t *testing.T) {
 
 	mk := New(f, "\n")
 
-	t.Run("PartSize", func(t *testing.T) {
-		n := 5
-		k := mk.PartSize(n)
-		t.Log("PartSize got ", k)
-	})
-
-	t.Run("", func(t *testing.T) {
-		n := 2
-		k := mk.Marks(n)
-		t.Log("marks got ", k)
+	t.Run("Marks", func(t *testing.T) {
+		for n, expected := range emptySeparatorCases {
+			t.Log(n, "PartSize got ", mk.PartSize(n))
+			got := mk.Marks(n)
+			t.Log(fmt.Sprintf("marks for %d got", n), got, expected)
+		}
 	})
 }

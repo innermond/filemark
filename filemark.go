@@ -2,6 +2,7 @@ package filemark
 
 import (
 	"io"
+	"log"
 	"math"
 )
 
@@ -31,8 +32,12 @@ func (mk *Filemark) Marks(numberOfParts int) []int64 {
 	if mk.Err() != nil {
 		return zero
 	}
+
 	// proxy variable
 	f := mk.f
+	// reset pointer to begining
+	f.Seek(0, io.SeekStart)
+
 	partsize, filesize := mk.PartSize(numberOfParts), mk.Size()
 	for {
 		// 1. move pointer
@@ -50,6 +55,11 @@ func (mk *Filemark) Marks(numberOfParts int) []int64 {
 		}
 		// 2. find delim
 		z := mk.findelim()
+		/*bk = make([]byte, 1)
+		log.Print(z)
+		fAt := f.(*os.File)
+		n, err := fAt.ReadAt(bk, z)
+		log.Print(n, err, string(bk))*/
 		// error or be paranoid and watch position to not go beyond file size
 		if mk.Err() != nil || z >= filesize {
 			break
@@ -57,6 +67,9 @@ func (mk *Filemark) Marks(numberOfParts int) []int64 {
 		marks = append(marks, z)
 	}
 	marks = append(marks, filesize)
+	// reset pointer to begining
+	f.Seek(0, io.SeekStart)
+
 	return marks
 }
 
@@ -66,7 +79,6 @@ func (mk *Filemark) findelim() int64 {
 	z := zero64
 	m := make([]byte, ldelim)
 	mc := 0
-
 	if ldelim == 0 {
 		z, mk.err = f.Seek(0, io.SeekCurrent)
 		return z
@@ -77,7 +89,9 @@ func (mk *Filemark) findelim() int64 {
 		if mk.err != nil {
 			return zero64
 		}
+		z, mk.err = f.Seek(0, io.SeekCurrent)
 		m = m[:mc]
+		log.Print(z, mk.err, string(m))
 		if string(m) == mk.delim {
 			break
 		}
@@ -98,7 +112,8 @@ func (mk *Filemark) PartSize(n int) int64 {
 		n = 1
 	}
 	sz := mk.Size()
-	return int64(math.Ceil(float64(sz) / float64(n)))
+	eaten := int64(len(mk.delim) * n)
+	return int64(math.Ceil(float64(sz-eaten) / float64(n)))
 }
 
 // Size calculate just bytes number of a file
