@@ -8,7 +8,7 @@ import (
 )
 
 // SplitFile a file into parts that ends with delimiter
-func SplitFile(fn string, delim string, pieces int) error {
+func SplitFile(fn string, delim string, size int64, pieces int) error {
 	var err error
 	// open file
 	f, err := os.Open(fn)
@@ -17,7 +17,7 @@ func SplitFile(fn string, delim string, pieces int) error {
 	}
 	defer f.Close()
 
-	mrr := Split(f, delim, pieces)
+	mrr := Split(f, delim, size, pieces)
 	// jumps from mark to mark reading between
 	var wg sync.WaitGroup
 	wg.Add(len(mrr))
