@@ -8,15 +8,11 @@ import (
 )
 
 // SplitFile a file into parts that ends with delimiter
-func SplitFile(fn string, delim string, size int64, pieces int) error {
-	var err error
-	// open file
-	f, err := os.Open(fn)
+func SplitFile(f *os.File, delim string, pieces int) error {
+	size, err := Size(f)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-
 	mrr := Split(f, delim, size, pieces)
 	// jumps from mark to mark reading between
 	var wg sync.WaitGroup
@@ -58,4 +54,25 @@ func SplitFile(fn string, delim string, size int64, pieces int) error {
 		return err
 
 	}
+}
+
+// Size calculate just bytes number of a file
+func Size(f *os.File) (int64, error) {
+	// keep original position
+	orig, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return orig, err
+	}
+	// move to the file's end to get size
+	size, err := f.Seek(0, io.SeekEnd)
+	// reset to original position
+	orig, origErr := f.Seek(orig, io.SeekStart)
+	if origErr != nil {
+		return orig, err
+	}
+	if err != nil {
+		return size, err
+	}
+
+	return size, nil
 }
