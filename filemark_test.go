@@ -8,64 +8,59 @@ import (
 	"testing"
 )
 
-func file(s string) (*os.File, error) {
+func file(s string) (*os.File, os.FileInfo, error) {
 	fn := filepath.Join("test_files", s)
 	f, err := os.Open(fn)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return f, nil
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, nil, err
+	}
+	return f, fi, nil
 }
 
 var marksOnEmptyFile = []int{0, 1, 2, 3, 4, 5}
 
 // TestEmptyFile an empty source
-func _TestEmptyFile(t *testing.T) {
-	f, err := file("empty_file")
+func TestEmptyFile(t *testing.T) {
+	t.Skip()
+	f, fi, err := file("empty_file")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer f.Close()
 
-	mk := New(f, "")
-
-	t.Run("empty file has size 0", func(t *testing.T) {
-		got := mk.Size()
-		if got != zero64 {
-			t.Errorf("expected %d but got %d", zero64, got)
-		}
-	})
+	mk := New(f, "", fi.Size())
 
 	t.Run("empty file always returns one mark at zero pos", func(t *testing.T) {
 		for _, n := range marksOnEmptyFile {
+			t.Log("val: ", n)
 			k := mk.Marks(n)
-			if len(k) != 1 {
-				t.Errorf("expected one mark from %v", k)
-			}
-			got := k[0]
-			if got != zero64 {
-				t.Errorf("expected zero mark on a nil file but got %d", got)
+			if len(k) != 2 {
+				t.Errorf("expected two marks from %v extremities 0 as start and 0 as final", k)
 			}
 		}
 	})
 }
 
 var emptySeparatorCases = map[int][]int64{
-	//0: []int64{20},
-	//1: []int64{20},
-	2: []int64{12, 20},
-	3: []int64{8, 16, 20},
+	//0: []int64{0, 20},
+	//1: []int64{0, 20},
+	2: []int64{0, 12, 20},
+	3: []int64{0, 8, 16, 20},
 }
 
 // TestEmptySeparator using a known file with empty separator
 func TestEmptySeparator(t *testing.T) {
-	f, err := file("newline")
+	f, fi, err := file("newline")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer f.Close()
 
-	mk := New(f, "\n")
+	mk := New(f, "", fi.Size())
 
 	t.Run("Marks", func(t *testing.T) {
 		for n, expected := range emptySeparatorCases {

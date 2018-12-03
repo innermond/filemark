@@ -1,6 +1,7 @@
 package filemark
 
 import (
+	"fmt"
 	"io"
 	"math"
 )
@@ -26,35 +27,39 @@ func New(f io.ReaderAt, d string, sz int64) *Filemark {
 // taking into account the delimiter
 func (mk *Filemark) Marks(numberOfParts int) []int64 {
 	zero := []int64{0}
-	marks := []int64{}
 
 	// previous error prevents any continuation
 	if mk.Err() != nil {
 		return zero
 	}
 
-	ldelim := int64(len(mk.delim))
-	partsize, filesize := mk.PartSize(numberOfParts), mk.size
+	partsize, size := mk.PartSize(numberOfParts), mk.size
 	pos := partsize
+
+	marks := []int64{}
+	ldelim := int64(len(mk.delim))
+	isDelimEmpty := ldelim == zero64
+
+	lbuf := ldelim
+	// in order to read buf must be at least 1 byte
+	if isDelimEmpty {
+		lbuf = int64(1)
+	}
+	buf := make([]byte, lbuf)
+
+	var err error
 
 eof:
 	for {
-		buf := make([]byte, ldelim)
-		n, err := mk.f.ReadAt(buf, pos)
-		if err != nil || int64(n) != ldelim {
-			if err == io.EOF {
-				break eof
-			}
-			mk.err = err
-			return zero
-		}
+		// find a delimiter advancing by delimiter length
 		for {
-			pos += ldelim
+			pos += lbuf
+			fmt.Println(ldelim, partsize, isDelimEmpty, buf, mk.delim, string(buf) == mk.delim)
 			if string(buf) == mk.delim {
 				marks = append(marks, pos)
 				break
 			}
-			n, err = mk.f.ReadAt(buf, pos)
+			_, err = mk.f.ReadAt(buf, pos)
 			if err != nil {
 				if err == io.EOF {
 					break eof
@@ -63,10 +68,14 @@ eof:
 				return zero
 			}
 		}
+		// increment position
 		pos += partsize
+		// reset buffer
+		buf = nil
 	}
-	marks = append(marks, filesize)
+	// add extremities 0 and size
 	marks = append([]int64{0}, marks...)
+	marks = append(marks, size)
 	return marks
 }
 
