@@ -54,7 +54,7 @@ var emptySeparatorCases = map[int][]int64{
 	//0: []int64{20},
 	//1: []int64{20},
 	2: []int64{12, 20},
-	3: []int64{8, 16, 20},
+	//3: []int64{8, 16, 20},
 }
 
 // TestEmptySeparator using a known file with empty separator

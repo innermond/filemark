@@ -91,7 +91,7 @@ func (mk *Filemark) findelim() int64 {
 		}
 		z, mk.err = f.Seek(0, io.SeekCurrent)
 		m = m[:mc]
-		log.Print(z, mk.err, string(m))
+		log.Print(z, mk.err, m)
 		if string(m) == mk.delim {
 			break
 		}
