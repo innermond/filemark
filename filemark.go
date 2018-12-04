@@ -5,18 +5,22 @@ import (
 	"math"
 )
 
-const zero64 = int64(0)
+const (
+	zero64 = int64(0)
+	one64  = int64(1)
+)
 
 // Filemark provides needed structure
 type Filemark struct {
-	f     io.ReadSeeker
+	f     io.ReaderAt
 	delim string
+	size  int64
 	err   error
 }
 
 // New constructs a Filemark pointer
-func New(f io.ReadSeeker, d string) *Filemark {
-	mk := &Filemark{f, d, nil}
+func New(f io.ReaderAt, d string, sz int64) *Filemark {
+	mk := &Filemark{f, d, sz, nil}
 	return mk
 }
 
@@ -25,77 +29,71 @@ func New(f io.ReadSeeker, d string) *Filemark {
 // taking into account the delimiter
 func (mk *Filemark) Marks(numberOfParts int) []int64 {
 	zero := []int64{0}
-	marks := []int64{}
 
 	// previous error prevents any continuation
 	if mk.Err() != nil {
 		return zero
 	}
 
-	// proxy variable
-	f := mk.f
-	// reset pointer to begining
-	f.Seek(0, io.SeekStart)
+	partsize, size := mk.PartSize(numberOfParts), mk.size
+	pos := partsize
 
-	partsize, filesize := mk.PartSize(numberOfParts), mk.Size()
-	for {
-		// 1. move pointer
-		_, mk.err = f.Seek(partsize, io.SeekCurrent)
-		if mk.err != nil {
-			break
-		}
-		// because f.Seek seems to not be able to signal EOF
-		// check for especially for io.EOF by trying ro read
-		bk := make([]byte, 1)
-		_, err := f.Read(bk)
-		if err == io.EOF {
-			mk.err = io.EOF
-			break
-		}
-		// 2. find delim
-		z := mk.findelim()
-		/*bk = make([]byte, 1)
-		log.Print(z)
-		fAt := f.(*os.File)
-		n, err := fAt.ReadAt(bk, z)
-		log.Print(n, err, string(bk))*/
-		// error or be paranoid and watch position to not go beyond file size
-		if mk.Err() != nil || z >= filesize {
-			break
-		}
-		marks = append(marks, z)
+	marks := []int64{}
+	ldelim := int64(len(mk.delim))
+	isDelimEmpty := ldelim == zero64
+
+	lbuf := ldelim
+	// in order to read buf must be at least 1 byte
+	if isDelimEmpty {
+		lbuf = int64(1)
 	}
-	marks = append(marks, filesize)
-	// reset pointer to begining
-	f.Seek(0, io.SeekStart)
+	buf := make([]byte, lbuf)
 
+	var (
+		n   int
+		err error
+	)
+
+	var found bool
+	// loop to parts
+eof:
+	for {
+		// loop to find a delimiter around a part
+		for {
+			n, err = mk.f.ReadAt(buf, pos)
+			if err != nil && int64(n) != lbuf {
+				if err == io.EOF {
+					break eof
+				}
+				mk.err = err
+				return zero
+			}
+			found = isDelimEmpty || string(buf) == mk.delim
+			if found {
+				// go right after the new found delimiter
+				pos += lbuf
+				// abort when pos goes out of size limit
+				if pos >= size {
+					break eof
+				}
+				marks = append(marks, pos)
+				break
+			}
+			if !isDelimEmpty {
+				// advance one byte more searching for delimiter
+				pos += one64
+			}
+		}
+		// increment position
+		pos += partsize
+		if pos >= size {
+			break eof
+		}
+	}
+	// add extremities 0 and size
+	marks = append([]int64{0}, marks...)
+	marks = append(marks, size)
 	return marks
-}
-
-func (mk *Filemark) findelim() int64 {
-	f := mk.f
-	ldelim := len(mk.delim)
-	z := zero64
-	m := make([]byte, ldelim)
-	mc := 0
-	if ldelim == 0 {
-		z, mk.err = f.Seek(0, io.SeekCurrent)
-		return z
-	}
-
-	for {
-		mc, mk.err = f.Read(m)
-		if mk.err != nil {
-			return zero64
-		}
-		z, mk.err = f.Seek(0, io.SeekCurrent)
-		m = m[:mc]
-		if string(m) == mk.delim {
-			break
-		}
-	}
-	z, mk.err = f.Seek(0, io.SeekCurrent)
-	return z
 }
 
 // Err returns the mistake that breaked "the happy flow"
@@ -109,32 +107,14 @@ func (mk *Filemark) PartSize(n int) int64 {
 	if n < 1 {
 		n = 1
 	}
-	sz := mk.Size()
-	eaten := int64(len(mk.delim) * n)
-	return int64(math.Ceil(float64(sz-eaten) / float64(n)))
-}
-
-// Size calculate just bytes number of a file
-func (mk *Filemark) Size() int64 {
-	f := mk.f
-	// keep original position
-	orig, err := f.Seek(0, io.SeekCurrent)
-	if err != nil {
-		mk.err = err
-		return orig
+	leaten := len(mk.delim)
+	if leaten == 0 {
+		leaten = 1
 	}
-	// move to the file's end to get size
-	size, err := f.Seek(0, io.SeekEnd)
-	// reset to original position
-	orig, origErr := f.Seek(orig, io.SeekStart)
-	if origErr != nil {
-		mk.err = origErr
-		return orig
+	eaten := int64(leaten * n)
+	delta := mk.size - eaten
+	if delta <= 0 {
+		return zero64
 	}
-	if err != nil {
-		mk.err = err
-		return size
-	}
-
-	return size
+	return int64(math.Ceil(float64(delta) / float64(n)))
 }

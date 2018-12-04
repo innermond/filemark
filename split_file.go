@@ -4,20 +4,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
+	"path/filepath"
 	"sync"
 )
 
 // SplitFile a file into parts that ends with delimiter
-func SplitFile(fn string, delim string, pieces int) error {
-	var err error
-	// open file
-	f, err := os.Open(fn)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	mrr := Split(f, delim, pieces)
+func SplitFile(f *os.File, delim string, size int64, pieces int) (err error) {
+	mrr := Split(f, delim, size, pieces)
 	// jumps from mark to mark reading between
 	var wg sync.WaitGroup
 	wg.Add(len(mrr))
@@ -28,8 +22,11 @@ func SplitFile(fn string, delim string, pieces int) error {
 		mr := mr
 		go func() {
 			defer wg.Done()
+			// name part file
+			nm := path.Base(f.Name())
+			nm = fmt.Sprintf("%d.%s", i, nm)
 			// create a part file
-			nm := fmt.Sprintf("%d.%s", i, f.Name())
+			nm = filepath.Clean(nm)
 			fp, err := os.Create(nm)
 			if err != nil {
 				fail <- err
@@ -58,4 +55,25 @@ func SplitFile(fn string, delim string, pieces int) error {
 		return err
 
 	}
+}
+
+// Size calculate just bytes number of a file
+func Size(f *os.File) (int64, error) {
+	// keep original position
+	orig, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return orig, err
+	}
+	// move to the file's end to get size
+	size, err := f.Seek(0, io.SeekEnd)
+	// reset to original position
+	orig, origErr := f.Seek(orig, io.SeekStart)
+	if origErr != nil {
+		return orig, err
+	}
+	if err != nil {
+		return size, err
+	}
+
+	return size, nil
 }
