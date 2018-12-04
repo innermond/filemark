@@ -1,12 +1,14 @@
 package filemark
 
 import (
-	"fmt"
 	"io"
 	"math"
 )
 
-const zero64 = int64(0)
+const (
+	zero64 = int64(0)
+	one64  = int64(1)
+)
 
 // Filemark provides needed structure
 type Filemark struct {
@@ -47,31 +49,46 @@ func (mk *Filemark) Marks(numberOfParts int) []int64 {
 	}
 	buf := make([]byte, lbuf)
 
-	var err error
+	var (
+		n   int
+		err error
+	)
 
+	var found bool
+	// loop to parts
 eof:
 	for {
-		// find a delimiter advancing by delimiter length
+		// loop to find a delimiter around a part
 		for {
-			pos += lbuf
-			fmt.Println(ldelim, partsize, isDelimEmpty, buf, mk.delim, string(buf) == mk.delim)
-			if string(buf) == mk.delim {
-				marks = append(marks, pos)
-				break
-			}
-			_, err = mk.f.ReadAt(buf, pos)
-			if err != nil {
+			n, err = mk.f.ReadAt(buf, pos)
+			if err != nil && int64(n) != lbuf {
 				if err == io.EOF {
 					break eof
 				}
 				mk.err = err
 				return zero
 			}
+			found = isDelimEmpty || string(buf) == mk.delim
+			if found {
+				// go right after the new found delimiter
+				pos += lbuf
+				// abort when pos goes out of size limit
+				if pos >= size {
+					break eof
+				}
+				marks = append(marks, pos)
+				break
+			}
+			if !isDelimEmpty {
+				// advance one byte more searching for delimiter
+				pos += one64
+			}
 		}
 		// increment position
 		pos += partsize
-		// reset buffer
-		buf = nil
+		if pos >= size {
+			break eof
+		}
 	}
 	// add extremities 0 and size
 	marks = append([]int64{0}, marks...)
@@ -90,6 +107,14 @@ func (mk *Filemark) PartSize(n int) int64 {
 	if n < 1 {
 		n = 1
 	}
-	eaten := int64(len(mk.delim) * n)
-	return int64(math.Ceil(float64(mk.size-eaten) / float64(n)))
+	leaten := len(mk.delim)
+	if leaten == 0 {
+		leaten = 1
+	}
+	eaten := int64(leaten * n)
+	delta := mk.size - eaten
+	if delta <= 0 {
+		return zero64
+	}
+	return int64(math.Ceil(float64(delta) / float64(n)))
 }

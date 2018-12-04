@@ -4,15 +4,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
+	"path/filepath"
 	"sync"
 )
 
 // SplitFile a file into parts that ends with delimiter
-func SplitFile(f *os.File, delim string, pieces int) error {
-	size, err := Size(f)
-	if err != nil {
-		return err
-	}
+func SplitFile(f *os.File, delim string, size int64, pieces int) (err error) {
 	mrr := Split(f, delim, size, pieces)
 	// jumps from mark to mark reading between
 	var wg sync.WaitGroup
@@ -24,8 +22,11 @@ func SplitFile(f *os.File, delim string, pieces int) error {
 		mr := mr
 		go func() {
 			defer wg.Done()
+			// name part file
+			nm := path.Base(f.Name())
+			nm = fmt.Sprintf("%d.%s", i, nm)
 			// create a part file
-			nm := fmt.Sprintf("%d.%s", i, f.Name())
+			nm = filepath.Clean(nm)
 			fp, err := os.Create(nm)
 			if err != nil {
 				fail <- err
