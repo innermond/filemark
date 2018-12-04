@@ -73,10 +73,9 @@ eof:
 				// go right after the new found delimiter
 				pos += lbuf
 				// abort when pos goes out of size limit
-				if pos >= size {
-					break eof
+				if pos < size {
+					marks = append(marks, pos)
 				}
-				marks = append(marks, pos)
 				break
 			}
 			if !isDelimEmpty {
@@ -86,9 +85,6 @@ eof:
 		}
 		// increment position
 		pos += partsize
-		if pos >= size {
-			break eof
-		}
 	}
 	// add extremities 0 and size
 	marks = append([]int64{0}, marks...)

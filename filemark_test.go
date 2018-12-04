@@ -120,3 +120,32 @@ func TestFancySeparator(t *testing.T) {
 		}
 	})
 }
+
+// N = num of parts
+// M = marks actual to be returned
+var marksEdgeSeparator = []struct {
+	N int
+	M []int64
+}{
+	{0, []int64{0, 27}},
+	{1, []int64{0, 27}},
+	{2, []int64{0, 15, 27}},
+	{3, []int64{0, 10, 20, 27}},
+}
+
+// TestEmptySeparator using a known file with empty separator
+func TestEdgeSeparator(t *testing.T) {
+	f, fi, err := File("test_files/edge_separator")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	mk := New(f, "xx", fi.Size())
+	t.Run("Marks", func(t *testing.T) {
+		for _, tc := range marksEdgeSeparator {
+			got := mk.Marks(tc.N)
+			assert.Equal(t, got, tc.M, fmt.Sprintf("%d = got %v instead %v", tc.N, got, tc.M))
+		}
+	})
+}
