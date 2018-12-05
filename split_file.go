@@ -10,16 +10,21 @@ import (
 )
 
 // SplitFile a file into parts that ends with delimiter
-func SplitFile(f *os.File, delim string, size int64, pieces int) (err error) {
+func SplitFile(f *os.File, delim string, size int64, pieces int) []error {
+	var err error
 	mrr := Split(f, delim, size, pieces)
+	lenr := len(mrr)
 	// jumps from mark to mark reading between
 	var wg sync.WaitGroup
-	wg.Add(len(mrr))
-	fail := make(chan error, 1)
-	done := make(chan bool, 1)
+	wg.Add(lenr)
+	fail := make(chan error, lenr)
+	done := make(chan bool, lenr)
+
+	// launch workers on separate gouroutines
 	for i, mr := range mrr {
 		i := i
 		mr := mr
+		// worker here
 		go func() {
 			defer wg.Done()
 			// name part file
@@ -40,21 +45,28 @@ func SplitFile(f *os.File, delim string, size int64, pieces int) (err error) {
 				fail <- err
 				return
 			}
+			done <- true
 		}()
 	}
 
+	// wait for workers to finish their job
 	go func() {
 		wg.Wait()
 		close(done)
 	}()
-	select {
-	case <-done:
-		return nil
-	case err = <-fail:
-		close(fail)
-		return err
 
+	// lisen here for workers signals
+	var errs []error
+	for ; lenr > 0; lenr-- {
+		select {
+		case <-done:
+		case err = <-fail:
+			errs = append(errs, err)
+		}
 	}
+	close(fail)
+
+	return errs
 }
 
 // Size calculate just bytes number of a file
