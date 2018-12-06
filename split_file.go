@@ -12,13 +12,11 @@ import (
 // SplitFile a file into parts that ends with delimiter
 func SplitFile(f *os.File, delim string, size int64, pieces int, step int) []error {
 	var err error
-	fmt.Println(pieces, step)
 	mrr := Split(f, delim, size, pieces)
 	lenr := len(mrr)
 	if step == 0 {
 		step = lenr
 	}
-	fmt.Println(lenr)
 	// jumps from mark to mark reading between
 	fail := make(chan error, lenr)
 	done := make(chan bool, lenr)
@@ -40,7 +38,6 @@ func SplitFile(f *os.File, delim string, size int64, pieces int, step int) []err
 		for xstep := 0; xstep < wall; xstep += step {
 			a := xstep
 			z := xstep + step
-			fmt.Println(a, z, step, lenr)
 			if z > lenr {
 				z = lenr
 			}
