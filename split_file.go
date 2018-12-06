@@ -10,61 +10,86 @@ import (
 )
 
 // SplitFile a file into parts that ends with delimiter
-func SplitFile(f *os.File, delim string, size int64, pieces int) []error {
+func SplitFile(f *os.File, delim string, size int64, pieces int, step int) []error {
 	var err error
+	fmt.Println(pieces, step)
 	mrr := Split(f, delim, size, pieces)
 	lenr := len(mrr)
+	if step == 0 {
+		step = lenr
+	}
+	fmt.Println(lenr)
 	// jumps from mark to mark reading between
-	var wg sync.WaitGroup
-	wg.Add(lenr)
 	fail := make(chan error, lenr)
 	done := make(chan bool, lenr)
 
 	// launch workers on separate gouroutines
-	for i, mr := range mrr {
-		i := i
-		mr := mr
-		// worker here
-		go func() {
-			defer wg.Done()
-			// name part file
-			nm := path.Base(f.Name())
-			nm = fmt.Sprintf("%d.%s", i, nm)
-			// create a part file
-			nm = filepath.Clean(nm)
-			fp, err := os.Create(nm)
-			if err != nil {
-				fail <- err
-				return
-			}
-			defer fp.Close()
-
-			// fill part file with mark reader content
-			_, err = io.Copy(fp, mr)
-			if err != nil {
-				fail <- err
-				return
-			}
-			done <- true
-		}()
-	}
-
-	// wait for workers to finish their job
+	// WARN: loop can raise to many file handlers
 	go func() {
-		wg.Wait()
-		close(done)
+		var wg sync.WaitGroup
+		// as a number of steps
+		wall := lenr / step
+		// leftover
+		extra := lenr % step
+		// fit perfectly as steps accumulation
+		wall *= step
+		// add an entire step
+		if extra != 0 {
+			wall += step
+		}
+		for xstep := 0; xstep < wall; xstep += step {
+			a := xstep
+			z := xstep + step
+			fmt.Println(a, z, step, lenr)
+			if z > lenr {
+				z = lenr
+			}
+			sliced := mrr[a:z]
+			wg.Add(len(sliced))
+			// i 0..step
+			for i, mr := range sliced {
+				i := i
+				mr := mr
+				// worker here
+				go func() {
+					defer wg.Done()
+					// name part file
+					nm := path.Base(f.Name())
+					nm = fmt.Sprintf("%d.%s", i+xstep, nm)
+					// create a part file
+					nm = filepath.Clean(nm)
+					fp, err := os.Create(nm)
+					if err != nil {
+						fail <- err
+						return
+					}
+					defer fp.Close()
+
+					// fill part file with mark reader content
+					_, err = io.Copy(fp, mr)
+					if err != nil {
+						fail <- err
+						return
+					}
+					done <- true
+				}()
+			}
+			// wait for step to to be executes
+			wg.Wait()
+		}
+		close(fail)
 	}()
 
-	// lisen here for workers signals
 	var errs []error
-	for ; lenr > 0; lenr-- {
+	// lisen here for workers signals
+	for j := 0; j < lenr; j++ {
 		select {
 		case <-done:
 		case err = <-fail:
 			errs = append(errs, err)
 		}
 	}
-	close(fail)
+	close(done)
 
 	return errs
 }
